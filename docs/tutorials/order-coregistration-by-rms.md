@@ -62,7 +62,7 @@ The same block works verbatim for `[steps.t1w_coregistration]`, which checks eac
 docker run --rm -it -v $PWD/db:/app/db --env-file=.env -p 8000:8000 psadil/dirt
 ```
 
-Open <http://localhost:8000>. On the first pass (that is, when every image unreviewed) `anomaly_first` serves the whole set of coregistrations worst-alignment first, then naturally deepens to give everything a look. The reviewer sees only the images; the millimeter metric is invisible to them and cannot anchor their judgment. Researchers can see the raw value and the derived priority in the admin.
+Open <http://localhost:8000>. On the first pass (that is, when every image unreviewed) `anomaly_first` serves the whole set of coregistrations worst-alignment first, then naturally deepens to give everything a look. Each run renders nine views, and `anomaly_first` serves them back to back; to see one view of every run before a second view of any, set `strategy = "anomaly_sweep"`. The reviewer sees only the images; the millimeter metric is invisible to them and cannot anchor their judgment. Researchers can see the raw value and the derived priority in the admin.
 
 ## Where to go next
 

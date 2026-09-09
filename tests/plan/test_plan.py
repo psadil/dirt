@@ -67,6 +67,12 @@ class TestParseEmpty:
         assert parsed.steps == ()
 
 
+def test_the_sweep_strategy_parses():
+    parsed = plan.parse('[ordering]\nstrategy = "anomaly_sweep"\n')
+
+    assert parsed.strategy == models.ReviewStrategy.ANOMALY_SWEEP
+
+
 class TestParseCatalogMeasure:
     CATALOG = (
         '[steps.dtifit]\norder_by="fd_mean"\ndirection="higher_worse"\n'

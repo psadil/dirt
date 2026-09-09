@@ -4,12 +4,15 @@ There are often far more targets to review than budgets allow, and so it would b
 
 ## Strategies
 
-A plan picks one strategy (`ordering.py`). Both are a single covering index seek.
+A plan picks one strategy (`ordering.py`). Each is a single covering index seek.
 
 | Strategy | Next image | Use |
 |---|---|---|
 | `breadth_first` (default) | fewest reviews first | one look at everything, then deepen |
 | `anomaly_first` | fewest reviews first, then **most atypical** within a review-depth band | surface likely failures early, full coverage |
+| `anomaly_sweep` | as `anomaly_first`, but one **view** of every scan per pass: a fixed cut and orientation of every scan, most atypical first, before any scan's next view | many-view steps (a coregistration renders nine views per run): one look at every scan early, then deepen |
+
+`anomaly_sweep` exists because a scan renders into several views (three or five cuts along each of three axes) while `priority` is a property of the scan, so `anomaly_first` serves every view of the worst scan back to back: with nine views per run, a reviewer sees 9 × N images before every run has had one look. The sweep ranks a view's position above its priority. Within a review-depth band, one pass walks cut 0 of every scan in one orientation (worst first), the next pass the next orientation, then cut 1, and so on until every view has been seen once; only then does the next band deepen. Position is as static as priority, so `n_reviews` stays the backbone (see below). With no measured priority at all, the sweep is breadth-first spread across scans one view at a time.
 
 ## The review plan (`dirt.toml`)
 
@@ -20,7 +23,7 @@ A plan is a small TOML file. It says which steps are reviewed and how to order t
 name = "ds007070 QC"
 
 [ordering]
-strategy = "anomaly_first"      # breadth_first | anomaly_first
+strategy = "anomaly_first"      # breadth_first | anomaly_first | anomaly_sweep
 
 [steps.masks]                   # one block per step in the review
 order_by = "mask_volume"        # a stored metric → the ordering key (omit ⇒ breadth-first here)

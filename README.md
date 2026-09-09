@@ -38,6 +38,8 @@ DIRT has three parts:
   dataset first and deepens per scan as time allows. *anomaly-first* keeps that
   backbone but re-ranks within each review-depth band by how atypical a measure
   is, surfacing likely failures early without ever hiding anything.
+  *anomaly-sweep* keeps that ranking but spreads each pass across scans: one
+  view of every scan, most atypical first, before a second view of any.
 - **A review platform.** A mobile-friendly Django web app presents the images,
   collects ratings, and stores everything in a SQL database, so several
   reviewers can work on the same dataset at once. A little session metadata (who

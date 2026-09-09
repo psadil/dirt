@@ -25,7 +25,9 @@ DIRT has three parts:
 - **A review-ordering algorithm.** During a session, images are served one at a time
   using a *breadth-first* strategy: the next image comes from whichever scan has been
   reviewed the fewest times. Effort is spread across the whole dataset first, then deepens
-  per scan as time allows. See [Review ordering](concepts/review-ordering.md).
+  per scan as time allows. *anomaly-first* re-ranks within each review-depth band by how
+  atypical a measure is; *anomaly-sweep* additionally serves one view of every scan per
+  pass. See [Review ordering](concepts/review-ordering.md).
 - **A review platform.** A mobile-friendly Django web app presents the images, collects
   ratings, and stores everything in a SQL database, so several reviewers can work on the
   same dataset at once.

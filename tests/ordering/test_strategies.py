@@ -19,6 +19,7 @@ def test_registry_covers_every_strategy():
     [
         ("breadth_first", ordering.BreadthFirst),
         ("anomaly_first", ordering.AnomalyFirst),
+        ("anomaly_sweep", ordering.AnomalySweep),
         # Session.strategy may be a ReviewStrategy member or its str value.
         (ReviewStrategy.ANOMALY_FIRST, ordering.AnomalyFirst),
     ],

@@ -9,6 +9,7 @@ from django_dirt_ratings.selectors import next_image
 
 BREADTH = ordering.BreadthFirst()
 ANOMALY = ordering.AnomalyFirst()
+SWEEP = ordering.AnomalySweep()
 STEP = Step.FMAP_COREGISTRATION
 
 
@@ -36,6 +37,32 @@ def session(db) -> Session:
     return Session.objects.create(step=STEP)
 
 
+# Every scan of a step renders the same (cut, orientation) positions.
+POSITIONS = [
+    (0, DisplayMode.X),
+    (0, DisplayMode.Y),
+    (1, DisplayMode.X),
+    (1, DisplayMode.Y),
+]
+
+
+@pytest.fixture
+def make_scan(make_image):
+    """Create one scan's whole view set, keyed by position, sharing one priority."""
+
+    def _make(
+        file1: str, *, priority: float | None
+    ) -> dict[tuple[int, DisplayMode], Image]:
+        return {
+            (cut, display): make_image(
+                file1=file1, slice=cut, display=display, priority=priority
+            )
+            for cut, display in POSITIONS
+        }
+
+    return _make
+
+
 @pytest.mark.django_db
 class TestAnomalyFirst:
     def test_highest_priority_served_first(self, make_image):
@@ -55,7 +82,9 @@ class TestAnomalyFirst:
 
         assert served.pk == scored.pk
 
-    @pytest.mark.parametrize("strategy", [ANOMALY, BREADTH], ids=["anomaly", "breadth"])
+    @pytest.mark.parametrize(
+        "strategy", [ANOMALY, BREADTH, SWEEP], ids=["anomaly", "breadth", "sweep"]
+    )
     def test_all_null_falls_back_to_insertion_order(self, make_image, strategy):
         first = make_image(priority=None)
         make_image(priority=None)
@@ -92,3 +121,102 @@ class TestAnomalyFirst:
         served = next_image(step=STEP, strategy=ANOMALY)
 
         assert served.pk == second.pk
+
+
+@pytest.mark.django_db
+class TestAnomalySweep:
+    """One view of every scan per pass; passes walk the (slice, display) positions."""
+
+    @pytest.fixture
+    def worst(self, make_scan):
+        return make_scan("worst.nii.gz", priority=3.0)
+
+    @pytest.fixture
+    def other(self, make_scan):
+        return make_scan("other.nii.gz", priority=1.0)
+
+    def test_starts_with_the_first_view_of_the_worst_scan(self, other, worst):
+        # `other` is created first (lower ids), so only priority puts `worst` ahead.
+        served = next_image(step=STEP, strategy=SWEEP)
+
+        assert served.pk == worst[(0, DisplayMode.X)].pk
+
+    @pytest.mark.parametrize(
+        "strategy, expected_file1",
+        [
+            pytest.param(SWEEP, "other.nii.gz", id="sweep-moves-on-to-the-next-scan"),
+            pytest.param(ANOMALY, "worst.nii.gz", id="anomaly-first-stays-on-it"),
+        ],
+    )
+    def test_a_second_view_of_a_scan_waits_for_every_other_scan(
+        self, worst, other, session, strategy, expected_file1
+    ):
+        services.rating_create(
+            image=worst[(0, DisplayMode.X)], session=session, rating=Ratings.FAIL
+        )
+
+        served = next_image(step=STEP, strategy=strategy)
+
+        assert served.file1 == expected_file1
+
+    def test_positions_are_swept_cut_major(self, worst, other, session):
+        """After cut 0 of every scan in one orientation: cut 0 in the next orientation."""
+        for scan in (worst, other):
+            services.rating_create(
+                image=scan[(0, DisplayMode.X)], session=session, rating=Ratings.PASS
+            )
+
+        served = next_image(step=STEP, strategy=SWEEP)
+
+        assert served.pk == worst[(0, DisplayMode.Y)].pk
+
+    def test_deepens_once_every_view_has_been_seen(self, worst, other, session):
+        for image in (*worst.values(), *other.values()):
+            services.rating_create(image=image, session=session, rating=Ratings.PASS)
+
+        served = next_image(step=STEP, strategy=SWEEP)
+
+        assert served.pk == worst[(0, DisplayMode.X)].pk
+
+    def test_single_view_scans_degenerate_to_anomaly_first(self, make_image):
+        make_image(step=Step.DTIFIT, slice=None, display=DisplayMode.Z, priority=1.0)
+        high = make_image(
+            step=Step.DTIFIT, slice=None, display=DisplayMode.Z, priority=2.0
+        )
+
+        served = next_image(step=Step.DTIFIT, strategy=SWEEP)
+
+        assert served.pk == high.pk
+
+
+def _query_plan(strategy: ordering.OrderingStrategy) -> str:
+    """SQLite's plan for the exact seek next_image runs (step filter + exclude)."""
+    qs = Image.objects.filter(step=STEP.value).exclude(id=0)
+    return strategy.order(qs).values_list("id", flat=True).explain()
+
+
+@pytest.mark.django_db
+class TestCoveringIndex:
+    """Every strategy is one covering index seek, as each index comment claims.
+
+    A strategy whose order_by drifts from its index (or an index whose migration
+    was forgotten) still serves the right image, just via a sort over the whole
+    step; only the query plan tells the difference.
+    """
+
+    @pytest.mark.parametrize(
+        "strategy, index",
+        [
+            pytest.param(BREADTH, "image_next", id="breadth"),
+            pytest.param(ANOMALY, "image_priority", id="anomaly"),
+            pytest.param(SWEEP, "image_sweep", id="sweep"),
+        ],
+    )
+    def test_seeks_its_covering_index(self, strategy, index):
+        assert f"USING COVERING INDEX {index}" in _query_plan(strategy)
+
+    @pytest.mark.parametrize(
+        "strategy", [BREADTH, ANOMALY, SWEEP], ids=["breadth", "anomaly", "sweep"]
+    )
+    def test_needs_no_sort(self, strategy):
+        assert "TEMP B-TREE" not in _query_plan(strategy)

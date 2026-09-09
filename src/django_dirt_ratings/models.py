@@ -104,6 +104,8 @@ class ReviewStrategy(models.TextChoices):
     BREADTH_FIRST = "breadth_first"
     # breadth backbone, most-atypical re-ranked within a review-depth band
     ANOMALY_FIRST = "anomaly_first"
+    # anomaly_first, but one view of every scan per pass (see ordering.AnomalySweep)
+    ANOMALY_SWEEP = "anomaly_sweep"
 
 
 class MetricDirection(models.TextChoices):
@@ -209,8 +211,9 @@ class Image(BaseModel):
         null=True,
         blank=True,
         help_text=(
-            "Advisory ordering key for the anomaly_first strategy, computed "
-            "by `manage prioritize` as a robust within-subgroup modified z-score "
+            "Advisory ordering key for the anomaly_first and anomaly_sweep "
+            "strategies, computed by `manage prioritize` as a robust "
+            "within-subgroup modified z-score "
             "(MAD-based; |z| for two-sided measures). Larger = more atypical, "
             "surfaced earlier; 0.0 = typical (including a subgroup with no "
             "meaningful spread); NULL = no measure (sorts after scored images, i.e. "
@@ -242,6 +245,16 @@ class Image(BaseModel):
             # whole order is a covering forward scan — a single leaf seek, no sort.
             models.Index(
                 fields=["step", "n_reviews", "-priority", "id"], name="image_priority"
+            ),
+            # Serves anomaly_sweep: order by (n_reviews, slice, display, priority
+            # desc nulls last, id). A view's position sits between the review-depth
+            # band and priority, so one seek walks a single (slice, display)
+            # position across every scan before moving to the next. The column
+            # order must match ordering.AnomalySweep.order token for token, or
+            # SQLite sorts (a temp b-tree) instead of seeking.
+            models.Index(
+                fields=["step", "n_reviews", "slice", "display", "-priority", "id"],
+                name="image_sweep",
             ),
         )
 

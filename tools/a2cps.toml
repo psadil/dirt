@@ -2,7 +2,7 @@
 name = "A2CPS MRI QC"
 
 [ordering]
-strategy = "anomaly_first" # fewest-reviews first, most atypical first within a depth band
+strategy = "anomaly_sweep" # one view of every scan per pass, most atypical scan first; deepen once every view has been seen
 
 # Every metric DIRT can compute is stored; a step only names the one it orders by.
 [steps.masks]

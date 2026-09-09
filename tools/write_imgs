@@ -55,6 +55,11 @@ run() {
 }
 
 if [[ "${MODE}" == push ]]; then
+	# The staged plan is re-activated first, so the plan that travels last (and
+	# ends active on the server) is always this file, not whatever the render job
+	# applied: editing a2cps.toml and pushing is enough to change the serving
+	# strategy, and a later push cannot quietly revert it.
+	run manage plan "${PLAN}"
 	# Reconciles by digest: units the server already holds unchanged are skipped,
 	# the plan travels first, and the server re-prioritizes afterwards — so this
 	# is safe to re-run after a partial failure, and after a later --update render.

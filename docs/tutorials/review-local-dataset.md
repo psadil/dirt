@@ -116,7 +116,7 @@ pixi run -e manage manage prioritize         # z-score the measure into the orde
 
 The metric only *reorders* — it never hides an image, and it is invisible to reviewers. Rerun
 `manage prioritize` after adding data. See [Review ordering](../concepts/review-ordering.md)
-for the strategies (`breadth_first`, `anomaly_first`) and the full schema.
+for the strategies (`breadth_first`, `anomaly_first`, `anomaly_sweep`) and the full schema.
 
 ## 5. Serve and review
 

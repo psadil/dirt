@@ -344,6 +344,22 @@ class TestNextImagePrefetch:
 
         assert client.session["image_id"] == worst.pk
 
+    def test_sweep_strategy_serves_the_first_view_of_the_worst_scan(
+        self, client, set_session, fmap_session
+    ):
+        """The cookie-pinned sweep threads through: position outranks insertion order."""
+        _fmap_image(file1="hi.nii.gz", slice=1, priority=5.0)
+        first_view = _fmap_image(file1="hi.nii.gz", slice=0, priority=5.0)
+        set_session(
+            step=Step.FMAP_COREGISTRATION,
+            session_id=fmap_session.pk,
+            strategy="anomaly_sweep",
+        )
+
+        client.get(reverse("rate_partial"))
+
+        assert client.session["image_id"] == first_view.pk
+
 
 @pytest.mark.django_db
 class TestClickPartialReference:
